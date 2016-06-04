@@ -1,17 +1,16 @@
 #!/usr/bin/py2
 import numpy as np
-import numpy.random as nr
+import numpy.linalg as la
+
+PI2 = np.pi * 2
 
 class Segment:
     def __init__(self, start, end):
-        self.start = start
-        self.end = end
+        self.start = np.array(start)
+        self.end = np.array(end)
         self.angle =  np.arctan((end[1] - start[1]) / (end[0] - start[0] ))
-        # arctan returns -pi/2 to pi/2
-
-    def bisect(self, bisection):
-        return Segment(start, bisection), Segment(bisection, end)
-
+        # arctan returns -pi/2 to pi/2 WANT 0 to 2pi
+        self.length = la.norm(self.end - self.start)
 
 class Seed:
     def __init__(self, start, angle, length):
@@ -20,12 +19,17 @@ class Seed:
         self.length = length
         self.end = start + length * np.array([ np.cos(angle), np.sin(angle) ])
 
+    def seg(self):
+        return Segment((start, end), False)
 
-class LSys:
-    def __init__(self, seed):
-        self.candidate = seed
+
+class SSLSys:
+    def __init__(self):
         self.accepted = []
         self.possible = []
+
+    def seed_sys(self, seed):
+        self.seed = seed
 
     def update(self):
         # use local & global fitness evals, choose best set as candidate
@@ -44,10 +48,13 @@ class LSys:
 
     def get_locals(self):
         locals = []
-        num_locals, mc_params = self.query_local()
-        # Monte Carlo & test to generate local candidates
+        num_locals, angle_range, len_range = self.query_local()
+        # get principal candidate from the seed
+        if self.valid_local(self.candidate):
+            locals.append(self.cadidate)
+        # Monte Carlo & test to generate other local candidates
         for i in xrange(num_locals):
-            temp = self.mc_local(mc_params) # Monte Carlo to generate locals
+            temp = self.gen_local(angle_range, len_range) # uniform distribution
             if self.valid_local(temp): # test if generated seed is local
                 locals.append(temp)
         return locals
@@ -64,7 +71,4 @@ class LSys:
         # (if angles are within a certain TOL merge candidate with existing segment)
         # if candidate is a little shy of intersect an accepted segment extend & generate a crossing
         # if candidate is a little shy of an existing crossing extend to crossing
-        pass
-
-    def test_global(self, local):
         pass
