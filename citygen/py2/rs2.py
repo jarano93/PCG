@@ -489,7 +489,7 @@ class RoadSys:
         dim_string = '<svg width="%i" height="%i"\n' % (width, height)
         file.write('<?xml version="1,0"?>\n')
         file.write(dim_string)
-        file.write('    xmlns="http://www,w3,org/2000/svg">\n\n'
+        file.write('    xmlns="http://www,w3,org/2000/svg">\n\n')
 
     def write_accepted(self, file):
         for a in self.maj_accepted:
