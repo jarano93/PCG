@@ -5,6 +5,8 @@ import random as r
 import numpy as np
 import numpy.linalg as la
 
+# TODO rework with active, change stop
+
 def get_angle(point):
     angle = m.atan2(point[0], point[1])
     if angle < 0:
@@ -13,7 +15,7 @@ def get_angle(point):
 
 def min_angle_difference(a1, a2):
     angles = np.array([a1, a1 + m.pi % 2 * m.pi])
-    return min(angles - a3)
+    return min(angles - a2)
 
 class Seed:
     def __init__(self, start, angle, length):
@@ -23,7 +25,7 @@ class Seed:
         self.init_end()
 
     def init_end(self):
-        self.end = self.start + length * np.array([m.sin(angle), m.cos(angle)])
+        self.end = self.start + self.length * np.array([m.sin(self.angle), m.cos(self.angle)])
 
     def get_segment(self):
         return Segment(self.start, self.end, self.length, self.angle)
@@ -58,20 +60,20 @@ class Segment:
             end_angle = start_angle
         if start_angle <= m.pi / 8 and end_angle >= 5 * m.pi / 8:
             if end_angle <= seed.angle or seed.angle <= start_angle:
-                return true
+                return True
             else:
-                return false
+                return False
         else:
             if start_angle <= seed.angle and seed.angle <= end_angle:
-                return true
+                return True
             else:
-                return false
+                return False
 
     def intersect_length(self, seed):
         # returns the length a seed needs in order to intersect self
         # only call if seed_nondiverg returns true
         start = self.start - seed.start # (x0, y0)
-        end = self.end - seed.end # (x1, y1)
+        end = self.end - seed.start # (x1, y1)
         x0, x1 = start[0], end[0]
         y0, y1 = start[1], end[1]
         x_dif = x1 - x0
@@ -80,18 +82,22 @@ class Segment:
         return numer / (x_dif * m.sin(seed.angle) - y_dif * m.cos(seed.angle))
 
 
-# TODO early termination for majors & minors
-# TODO handling when maj_possible and min_possible are both empty
+# DONE early termination for majors & minors
+# DONE handling when maj_possible and min_possible are both empty
+
+# TODO make update rules change while updating
 
 class RoadSys:
     def __init__(self, hmap, dmap, vmap):
         self.hmap = hmap
         self.dmap = dmap
         self.vmap = vmap # 2D array of 1's (valid) and 0's (invalid)
+        self.active = []
         self.maj_accepted = []
         self.maj_possible = []
         self.min_accepted = []
         self.min_possible = []
+        self.shape = self.hmap.shape
 
     def map_filter(self, map, coords, filter_radius):
         map_shape = map.shape
@@ -110,46 +116,99 @@ class RoadSys:
             res.append(hit)
         return res
 
-    def create_system(self, fName, N_mc, N_maj, N_min, maj_rules, min_rules):
+    def create_system(self, fName, N_mc, N_maj, N_min, maj_params, min_params):
         self.majors, self.minors = [], []
+        self.update_params = maj_params # major rules can change while updating
         self.candidate = self.major_candidate(N_mc)
-        self.majors(N_maj, maj_rules)
+        self.major_system(N_maj)
+        maj_fname = fName + "_maj"
+        self.save_svg(maj_fname)
+        self.update_rules = min_params # minor rules can change while updating
+        print len(self.maj_possible), len(self.min_possible)
         self.candidate = self.minor_candidate()
-        self.minors(N_min, min_rules)
+        self.minor_system(N_min)
+        print len(self.maj_accepted), len(self.min_accepted)
         self.save_svg(fName)
 
     def major_candidate(self, N):
+        gauss_flag = self.update_params['major_candidate']['gauss']
+        if gauss_flag:
+            start_var = self.update_params['major_candidate']['start_variance']
+            len_mean = self.update_params['major_candidate']['length_mean']
+            len_var = self.update_params['major_candidate']['length_variance']
+            start_mean_r = (self.shape[0] - 1) / 2
+            start_mean_c = (self.shape[1] - 1) / 2
+        else:
+            len_fl= self.update_params['major_candidate']['length_floor']
+            len_ceil = self.udpate_params['major_candidate']['length_ceiling']
+        while True:
+            if gauss_flag:
+                best_start = [
+                        r.gauss(start_mean_r, start_var),
+                        r.gauss(start_mean_c, start_var)
+                    ]
+                best_len = r.gauss(len_mean, len_var)
+            else:
+                best_start = [
+                        r.uniform(0, self.shape[0] - 1),
+                        r.uniform(0, self.shape[1] - 1)
+                    ]
+                best_len = r.uniform(len_fl, len_ceil)
+            best = Seed(best_start, r.uniform(0, 2 * m.pi), best_len)
+            if self.valid_local(best):
+                best_score = self.test_global(best)
+                break
         for n in xrange(N):
-            # generate random candidates, pick the best valid one
-            pass
+            if gauss_flag:
+                temp_start = [
+                        r.gauss(start_mean_r, start_var),
+                        r.gauss(start_mean_c, start_var)
+                    ]
+                temp_len = r.gauss(len_mean, len_var)
+            else:
+                temp_start = [
+                        r.uniform(0, self.shape[0] - 1),
+                        r.uniform(0, self.shape[1] - 1)
+                    ]
+                temp_len = r.uniform(len_fl, len_ceil)
+            temp = Seed(temp_start, r.uniform(0, 2 * m.pi), temp_len)
+            if not self.valid_local(temp):
+                continue
+            temp_score = self.test_global(temp)
+            if temp_score > best_score:
+                best = temp
+                best_score = temp_score
+        return [best]
 
-    def majors(self, N, major_params):
-        self.update_params = major_params # major rules can change while updating
+    def major_system(self, N):
         for n in xrange(N):
             self.candidate = self.maj_update()
             if len(self.candidate) == 0:
                 break
 
     def maj_update(self):
-        local_candidates = get_locals()
+        local_candidates = self.get_locals()
         if len(local_candidates) == 0:
             if len(self.maj_possible) == 0:
                 return []
             else:
                 return [self.maj_possible.pop(0)]
-        best = best_global(local_candidates)
+        best = self.best_global(local_candidates)
+        print best.length, best.angle, best.end
         next_candidate, branches = self.match_maj(best)
-        self.trim_maj(next_candidate, branches)
-        self.maj_possible.extend(branches)
+        next_possibles = self.trim_maj(next_candidate, branches)
+        self.maj_possible.extend(next_possibles)
+        # print len(self.maj_possible)
         return next_candidate
 
     def get_locals(self):
         # get principal candidate from the seed
-        if self.valid_local(self.candidate):
-            locals.append(self.candidate)
-        # Monte Carlo & test to generate other local candidates
         locals = []
-        num_locals, angle_range, len_range = self.local_conditions(self.candidate.start)
+        candidate = self.candidate[0]
+        if self.valid_local(candidate):
+            locals.append(candidate)
+        # Monte Carlo & test to generate other local candidates
+        num_locals, angle_range, len_range = self.local_conditions(candidate)
         for i in xrange(num_locals):
             temp = self.gen_local(angle_range, len_range)
             if self.valid_local(temp):
@@ -158,8 +217,16 @@ class RoadSys:
 
     def valid_local(self, c):
         # tbh I think I only need to check the ends
-        valid = True
         coord_start, coord_end = c.start, c.end
+        valid = True
+        if coord_start[0] < 0 or coord_start[1] < 0:
+            return False
+        if coord_end[0] < 0 or coord_end[1] < 0:
+            return False
+        if coord_start[0] >= self.shape[0] or coord_start[1] >= self.shape[1]:
+            return False
+        if coord_end[0] >= self.shape[0]  or coord_end[1] >= self.shape[1]:
+            return False
         if not self.vmap[coord_start[0],coord_start[1]]:
             valid = False
         if not self.vmap[coord_end[0],coord_end[1]]:
@@ -181,32 +248,46 @@ class RoadSys:
 
         num_fl = self.update_params['local']['number_floor']
         num_ceil = self.update_params['local']['number_ceiling']
+        num_scale = self.update_params['local']['number_scale']
         angle_fl = self.update_params['local']['angle_floor'] # m.pi / 18
         angle_ceil = self.update_params['local']['angle_ceiling']
+        angle_scale = self.update_params['local']['angle_scale']
         len_fl = self.update_params['local']['length_floor']
         len_ceil = self.update_params['local']['length_ceiling']
+        len_scale = self.update_params['local']['length_scale']
+        """
+            num_arg = 0
+            angle_arg = 0
+            len_arg = 0
+            h_start, h_end = self.candidate_filter(self.hmap, c, filter_radius)
+            d_start, d_end = self.candidate_filter(self.dmap, c, filter_radius)
+            v_start, v_end = self.candidate_filter(self.vmap, c, filter_radius)
 
-        num_arg = 0
-        angle_arg = 0
-        len_arg = 0
-        h_start, h_end = self.candidate_filter(self.hmap, c, filter_radius)
-        d_start, d_end = self.candidate_filter(self.dmap, c, filter_radius)
-        v_start, v_end = self.candidate_filter(self.vmap, c, filter_radius)
-        for i in xrange(len(filter_radius)):
-            num_arg += hn_weight / (abs(h_start[i] - h_end[i]) + 1e-2)
-            num_arg += dn_weight * (d_start[i] + d_end[i]) / 2
-            num_arg += vn_weight / (v_start[i] + v_end[i])
-            angle_arg += ha_weight / (abs(h_start[i] - h_end[i]) + 1e-2)
-            angle_arg += da_weight * (d_start[i] + d_end[i]) / 2
-            angle_arg += va_weight / (v_start[i] + v_end[i])
-            len_arg += hl_weight / (abs(h_start[i] - h_end[i]) + 1e-2)
-            len_arg += dl_weight / (d_start[i] + d_end[i])
-            len_arg += vl_weight / (v_start[i] + v_end[i])
+            for i in xrange(len(filter_radius)):
+                num_arg += hn_weight / (abs(h_start[i] - h_end[i]) + 1e-2)
+                num_arg += dn_weight * (d_start[i] + d_end[i]) / 2
+                num_arg += vn_weight / (v_start[i] + v_end[i])
+                angle_arg += ha_weight / (abs(h_start[i] - h_end[i]) + 1e-2)
+                angle_arg += da_weight * (d_start[i] + d_end[i]) / 2
+                angle_arg += va_weight / (v_start[i] + v_end[i])
+                len_arg += hl_weight / (abs(h_start[i] - h_end[i]) + 1e-2)
+                len_arg += dl_weight / (d_start[i] + d_end[i])
+                len_arg += vl_weight / (v_start[i] + v_end[i])
 
-        num = num_ceil - int((num_ceil - num_fl) * m.exp(-num_arg))
-        angle = angle_fl + ((angle_ceil - angle_fl) / (1 + m.exp(-angle_arg)))
-        len = len_fl + ((len_ceil - len_fl) / (1 + m.exp(-len_arg)))
-        return num, angle, len
+            try:
+                num = num_ceil - int((num_ceil - num_fl) * m.exp(-num_scale * num_arg))
+            except OverflowError:
+                num = (num_fl + num_ceil) / 2
+            try:
+                angle = angle_fl + ((angle_ceil - angle_fl) / (1 + m.exp(-angle_scale * angle_arg)))
+            except OverflowError:
+                angle = (angle_fl + angle_ceil) / 2
+            length = len_fl + ((len_ceil - len_fl) / (1 + m.exp(-len_scale * len_arg)))
+        """
+        num = int(r.uniform(num_fl, num_ceil))
+        angle = r.uniform(angle_fl, angle_ceil)
+        length = r.uniform(len_fl, len_ceil)
+        return num, angle, [len_fl, len_ceil]
 
     def candidate_filter(self, map, c, filter_radius):
         response_start = self.map_filter(map, c.start, filter_radius)
@@ -214,13 +295,14 @@ class RoadSys:
         return response_start, response_end
 
     def gen_local(self, angle_range, len_range):
-        c_angle = self.candidate.angle + 2 * m.pi # mod 2pi later
-        c_len = self.candidate.length
+        candidate = self.candidate[0]
+        c_angle = candidate.angle + 2 * m.pi # mod 2pi later
+        c_len = candidate.length
         rand_angle = r.uniform(c_angle - angle_range, c_angle + angle_range)
         rand_angle = rand_angle % (2 * m.pi)
-        len_floor = c_len - len_range if c_len - len_range > 0 else 0
-        rand_len = r.uniform(len_floor, c_len + len_range)
-        return Seed(self.candidate.start, rand_angle, rand_len)
+        # len_floor = c_len - len_range if c_len - len_range > 0 else 0
+        rand_len = r.uniform(len_range[0], len_range[1])
+        return Seed(candidate.start, rand_angle, rand_len)
 
     def best_global(self, candidates):
         best = candidates[0]
@@ -236,16 +318,11 @@ class RoadSys:
         # use the update rules
         d_weight = self.update_params['global']['density_weight']
         h_weight = self.update_params['global']['height_weight']
-        # n_weight = self.update_rules['global']['nearest_weight'] DEPRECATED
         start = c.start
         end = c.end
         density = (self.dmap[start[0],start[1]] + self.dmap[end[0],end[1]]) / 2
         height = (self.hmap[start[0],start[1]] + self.hmap[end[0],end[1]]) / 2
         return d_weight * density + h_weight * height
-
-    # DEPRECATED
-    def nearest_seg_node(self, c):
-        pass
 
     def match_maj(self, c):
         match_c = c
@@ -257,9 +334,10 @@ class RoadSys:
         branch_flag = True
 
         # model params
-        p_TOL = self.update_rules['match']['point_TOL']
-        i_TOL = self.update_rules['match']['intersect_TOL']
-        m_TOL = self.update_rules['match']['merge_TOL']
+        p_TOL = self.update_params['match']['point_TOL']
+        i_TOL = self.update_params['match']['intersect_TOL']
+        m_TOL = self.update_params['match']['merge_TOL']
+        act_stop = self.update_params['match']['active_stop']
 
         for a in self.maj_accepted:
             if la.norm(c_end - a.start) < p_TOL:
@@ -267,7 +345,7 @@ class RoadSys:
                 c.set_end(a.start)
                 # snap to start-point
                 if min_angle_difference(a.angle, c_angle) < m_TOL: # merge
-                    next_c= [self.maj_possible.pop(0)]
+                    pass
                 else: # intersect
                     next_c= [Seed(c_end, c_angle, c_length)]
             elif la.norm(c_end - a.end) < p_TOL:
@@ -275,7 +353,7 @@ class RoadSys:
                 c.set_end(a.end)
                 #snap to end-point
                 if min_angle_difference(a.angle, c_angle) < m_TOL: # merge
-                    next_c= [self.maj_possible.pop(0)]
+                    pass
                 else: # intersect
                     next_c= [Seed(c_end, c_angle, c_length)]
             elif a.seed_nondiverg(c):
@@ -285,38 +363,48 @@ class RoadSys:
                     branch_flag = False
                     c.set_length(i_length)
                     if min_angle_difference(a.angle, c_angle) < m_TOL: # merge
-                        next_c= [self.maj_possible.pop(0)]
+                        pass
                     else: # intersect
                         next_c= [Seed(c_end, c_angle, c_length)]
                     break
 
         if branch_flag:
-            next_c, possibles = self.branch(c)
+            next_c, possibles, min_possibles = self.branch(c)
+            if r.random() < len(self.active) / act_stop:
+                next_c = []
+            self.min_possible.extend(min_possibles)
+        elif len(next_c) == 0:
+            try:
+                next_c = [self.maj_possible.pop(0)]
+            except IndexError:
+                next_c = []
 
-        maj_accepted = c.get_segment()
+        self.active.append(c.get_segment())
 
         return next_c, possibles
 
-    def trim_maj(self, c, branches):
+    def trim_maj(self, candidate, branches):
         for p in self.maj_possible:
-            if self.redundant(c, p):
-                self.maj_possible.remove(p)
+            for c in candidate:
+                if self.redundant(c, p):
+                    self.maj_possible.remove(p)
             for b in branches:
-                if self.redundant(b, m):
+                if self.redundant(b, p):
                     branches.remove(b)
         return branches
 
-    def trim_min(self, c, branches):
-        for p in self.min_possibles:
-            if self.redundant(c, p):
-                self.min_possible.remove(p)
+    def trim_min(self, candidate, branches):
+        for p in self.min_possible:
+            for c in candidate:
+                if self.redundant(c, p):
+                    self.min_possible.remove(p)
             for b in branches:
                 if self.redundant(b, p):
-                    self.branches.remove(b)
+                    branches.remove(b)
         return branches
 
     def redundant(self, possible0, possible1):
-        TOL = self.update_rules['redundandcy_TOL']
+        TOL = self.update_params['redundancy_TOL']
         start0, end0 = possible0.start, possible0.end
         start1, end1 = possible1.start, possible1.end
         if la.norm(start0 - start1) < TOL and la.norm(end0 - end1) < TOL:
@@ -330,22 +418,23 @@ class RoadSys:
         # just copy paste this shit in the other one fam
         # r.random for [0,1)
         branches = []
+        min_branches = []
         candidate = [Seed(c.end, c.angle, c.length)]
         branch_prob, branch_angle = self.branch_conditions(c)
-        angle_list1 = np.arange(m.pi, branch_angle)[1:]
-        angle_list2 = 2 * m.pi - branch_angle_list1
-        branch_angle_list = np.concatenate(angle_list1, angle_list2)
+        angle_list1 = np.arange(0, m.pi, branch_angle)[1:]
+        angle_list2 = 2 * m.pi - angle_list1
+        branch_angle_list = np.concatenate((angle_list1, angle_list2))
         branch_angle_list = (branch_angle_list + c.angle) % (2 * m.pi)
         for angle in branch_angle_list:
             if r.random() < branch_prob:
                 branches.append(Seed(c.end, angle, c.length))
-        return candidate, branches
+            else:
+                min_branches.append(Seed(c.end, angle, c.length))
+        return candidate, branches, min_branches
 
-    # TODO
     def branch_conditions(self, c):
         # USE THE UPDATE RULES
         # return branch_prob & angle
-
         hp_weight = self.update_params['branch']['height_weight']['probability']
         dp_weight = self.update_params['branch']['density_weight']['probability']
         ha_weight = self.update_params['branch']['height_weight']['angle']
@@ -353,8 +442,10 @@ class RoadSys:
 
         prob_fl = self.update_params['branch']['probability_floor']
         prob_ceil = self.update_params['branch']['probability_ceiling']
+        prob_scale = self.update_params['branch']['probability_scale']
         angle_fl = self.update_params['branch']['angle_floor'] # m.pi/9
         angle_ceil = self.update_params['branch']['angle_ceiling'] # 3 * m.pi / 4
+        angle_scale = self.update_params['branch']['angle_scale']
 
         start = c.start
         end = c.end
@@ -363,36 +454,38 @@ class RoadSys:
         density = self.dmap[c.end[0], c.end[1]]
 
         prob_arg = hp_weight * h_dif + dp_weight * density
-        prob = prob_fl + ((prob_ceil - prob_fl) / (1 + m.exp(-prob_arg)))
+        prob = prob_fl + ((prob_ceil - prob_fl) / (1 + m.exp(-prob_scale * prob_arg)))
         angle_arg = ha_weight * h_dif + da_weight * density
-        angle = angle_fl + ((angle_ceil - angle_fl) / (1 + m.exp(-angle_arg)))
+        angle = angle_fl + ((angle_ceil - angle_fl) / (1 + m.exp(-angle_scale * angle_arg)))
         return prob, angle
 
     def minor_candidate(self):
-        self.candidate = self.min_possible.pop(0)
+        self.min_possible.extend(self.maj_possible)
         self.maj_possible = []
+        return [self.min_possible.pop(0)]
         # on second thought don't do the following
         # pop_val = r.randrange(len(self.min_possible))
         # self.canididate = self.min_possible.pop(pop_val)
 
-    def minors(self, N, minor_rules):
-        self.update_rules = minor_rules # minor rules can change while updating
+    def minor_system(self, N):
         for n in xrange(N):
             self.candidate = self.min_update()
             if len(self.candidate) == 0:
                 break
 
     def min_update(self):
-        local_candidates = get_locals()
+        local_candidates = self.get_locals()
         if len(local_candidates) == 0:
             if len(self.min_possible) == 0:
                 return []
             else:
                 return [self.min_possible.pop(0)]
-        best_candidate = best_global(local_candidates)
-        match_best, next_candidate, branches = self.match_all(best)
-        self.trim_min(next_candidate, branches)
+        best_candidate = self.best_global(local_candidates)
+        print best_candidate.length
+        next_candidate, branches = self.match_min(best_candidate)
+        next_possibles = self.trim_min(next_candidate, branches)
         self.min_possible.extend(next_possibles)
+        # print len(self.min_possible)
         return next_candidate
 
     def match_min(self, c):
@@ -405,11 +498,12 @@ class RoadSys:
         branch_flag = True
 
         # model params
-        p_TOL = self.update_rules['match']['point_TOL']
-        i_TOL = self.update_rules['match']['intersect_TOL']
-        m_TOL = self.update_rules['match']['merge_TOL']
+        p_TOL = self.update_params['match']['point_TOL']
+        i_TOL = self.update_params['match']['intersect_TOL']
+        m_TOL = self.update_params['match']['merge_TOL']
+        act_stop = self.update_params['match']['active_stop']
 
-        noncross = self.update_rules['match']['min_maj_noncross']
+        noncross = self.update_params['match']['min_maj_noncross']
 
         for a in self.maj_accepted:
             if la.norm(c_end - a.start) < p_TOL:
@@ -417,7 +511,7 @@ class RoadSys:
                 c.set_end(a.start)
                 # snap to start-point
                 if noncross or min_angle_difference(a.angle, c_angle) < m_TOL: # merge
-                    next_c= [self.maj_possible.pop(0)]
+                    pass
                 else: # intersect
                     next_c= [Seed(c_end, c_angle, c_length)]
             elif la.norm(c_end - a.end) < p_TOL:
@@ -425,7 +519,7 @@ class RoadSys:
                 c.set_end(a.end)
                 #snap to end-point
                 if noncross or min_angle_difference(a.angle, c_angle) < m_TOL: # merge
-                    next_c= [self.maj_possible.pop(0)]
+                    pass
                 else: # intersect
                     next_c= [Seed(c_end, c_angle, c_length)]
             elif a.seed_nondiverg(c):
@@ -435,7 +529,7 @@ class RoadSys:
                     branch_flag = False
                     c.set_length(i_length)
                     if noncross or min_angle_difference(a.angle, c_angle) < m_TOL: # merge
-                        next_c= [self.maj_possible.pop(0)]
+                        pass
                     else: # intersect
                         next_c= [Seed(c_end, c_angle, c_length)]
                     break
@@ -445,7 +539,7 @@ class RoadSys:
                 c.set_end(a.start)
                 # snap to start-point
                 if min_angle_difference(a.angle, c_angle) < m_TOL: # merge
-                    next_c= [self.maj_possible.pop(0)]
+                    pass
                 else: # intersect
                     next_c= [Seed(c_end, c_angle, c_length)]
             elif la.norm(c_end - a.end) < p_TOL:
@@ -453,7 +547,7 @@ class RoadSys:
                 c.set_end(a.end)
                 #snap to end-point
                 if min_angle_difference(a.angle, c_angle) < m_TOL: # merge
-                    next_c= [self.maj_possible.pop(0)]
+                    pass
                 else: # intersect
                     next_c= [Seed(c_end, c_angle, c_length)]
             elif a.seed_nondiverg(c):
@@ -463,39 +557,46 @@ class RoadSys:
                     branch_flag = False
                     c.set_length(i_length)
                     if min_angle_difference(a.angle, c_angle) < m_TOL: # merge
-                        next_c= [self.maj_possible.pop(0)]
+                        pass
                     else: # intersect
                         next_c= [Seed(c_end, c_angle, c_length)]
                     break
 
         if branch_flag:
-            next_c, possibles = self.branch(c)
+            next_c, possibles, _ = self.branch(c)
+            if r.random() < len(self.min_possible) / c_stop:
+                next_c = []
+        elif len(next_c) == 0:
+            try:
+                next_c = [self.min_possible.pop(0)]
+            except IndexError:
+                next_c = []
 
-        maj_accepted = c.get_segment()
+        self.min_accepted.append(c.get_segment())
         return next_c, possibles
 
-    # TODO
     def save_svg(self, fName):
-        file = open(fName, 'w')
+        file_name = fName + ".svg"
+        file = open(file_name, 'w')
         self.prep_svg(file)
-        self.write_segments(file)
+        self.write_accepted(file)
         self.end_svg(file)
         file.close()
-        print "Saved svg as %s" % fName
+        # print "Saved svg as %s" % fName
 
     def prep_svg(self, file):
         shape = self.hmap.shape
         width, height = shape[1], shape[0]
         dim_string = '<svg width="%i" height="%i"\n' % (width, height)
-        file.write('<?xml version="1,0"?>\n')
+        file.write('<?xml version="1.0"?>\n')
         file.write(dim_string)
-        file.write('    xmlns="http://www,w3,org/2000/svg">\n\n')
+        file.write('    xmlns="http://www.w3.org/2000/svg">\n\n')
 
     def write_accepted(self, file):
         for a in self.maj_accepted:
-            file.write(self.segment_svg(a, black, 2))
+            file.write(self.segment_svg(a, 'red', 1))
         for a in self.min_accepted:
-            file.write(self.segment_svg(a, black, 2))
+            file.write(self.segment_svg(a, 'black', 1))
 
     def segment_svg(self, seg, stroke, width):
         part1 = '<line x1="%f" y1="%f" ' % (seg.start[1], seg.start[0])
