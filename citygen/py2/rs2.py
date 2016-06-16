@@ -562,15 +562,14 @@ class RoadSys:
         file.close()
 
     def write_debug(self, file):
-        for a in self.maj_accepted:
-            file.write(self.segment_svg(a, 'red', 1))
-        for a in self.min_accepted:
-            file.write(self.segment_svg(a, 'black', 1))
         for p in self.min_possible:
             file.write(self.segment_svg(p, 'blue', 1))
         for c in self.candidates:
             file.write(self.segment_svg(c, 'green', 1))
-
+        for a in self.min_accepted:
+            file.write(self.segment_svg(a, 'black', 1))
+        for a in self.maj_accepted:
+            file.write(self.segment_svg(a, 'red', 1))
 
     def save_svg(self, fName):
         file_name = fName + ".svg"
@@ -591,10 +590,10 @@ class RoadSys:
         file.write('    xmlns="http://www.w3.org/2000/svg">\n\n')
 
     def write_accepted(self, file):
-        for a in self.maj_accepted:
-            file.write(self.segment_svg(a, 'black', 1))
         for a in self.min_accepted:
             file.write(self.segment_svg(a, 'gray', 1))
+        for a in self.maj_accepted:
+            file.write(self.segment_svg(a, 'black', 1))
 
     def segment_svg(self, seg, stroke, width):
         part1 = '<line x1="%f" y1="%f" ' % (seg.start[1], seg.start[0])
