@@ -347,7 +347,9 @@ class RoadSys:
             self.min_possible.extend(min_branches)
             if r.random() < float(len(self.candidates)) / c_stop:
                 self.min_possible.extend(next_c)
+                self.min_possible.extend(branches)
                 next_c = []
+                branches = []
             next_c.extend(branches)
 
         return next_c
@@ -536,6 +538,7 @@ class RoadSys:
             next_c, branches, _ = self.branch(c)
             if r.random() < len(self.candidates) / c_stop:
                 next_c = []
+                branches = []
             next_c.extend(branches)
 
         return next_c
