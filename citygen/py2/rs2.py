@@ -203,15 +203,15 @@ class RoadSys:
         coord_start, coord_end = c.start, c.end
         if coord_start[0] < 0 or coord_start[1] < 0:
             return False
-        if coord_end[0] < 0 or coord_end[1] < 0:
+        elif coord_end[0] < 0 or coord_end[1] < 0:
             return False
-        if coord_start[0] >= self.shape[0] or coord_start[1] >= self.shape[1]:
+        elif coord_start[0] >= self.shape[0] or coord_start[1] >= self.shape[1]:
             return False
-        if coord_end[0] >= self.shape[0]  or coord_end[1] >= self.shape[1]:
+        elif coord_end[0] >= self.shape[0]  or coord_end[1] >= self.shape[1]:
             return False
-        if self.vmap[int(coord_start[0]), int(coord_start[1])] <= 0:
+        elif self.vmap[int(coord_start[0]), int(coord_start[1])] <= 0:
             return False
-        if self.vmap[int(coord_end[0]), int(coord_end[1])] <= 0:
+        elif self.vmap[int(coord_end[0]), int(coord_end[1])] <= 0:
             return False
         return True
 
@@ -347,9 +347,9 @@ class RoadSys:
             self.min_possible.extend(min_branches)
             if r.random() < float(len(self.candidates)) / c_stop:
                 self.min_possible.extend(next_c)
-                self.min_possible.extend(branches)
+                self.min_possible.extend(branches) # delete if unsatisfactory
                 next_c = []
-                branches = []
+                branches = [] # delete if unsatisfactory
             next_c.extend(branches)
 
         return next_c
@@ -538,7 +538,7 @@ class RoadSys:
             next_c, branches, _ = self.branch(c)
             if r.random() < len(self.candidates) / c_stop:
                 next_c = []
-                branches = []
+                branches = [] # Delete if unsatisfactory
             next_c.extend(branches)
 
         return next_c
