@@ -16,7 +16,7 @@ v_corners = [-50, 50, 50, 50]
 # lsys params
 mc_params = {
         'N': 100,
-        'candidates': 3,
+        'candidates': 10,
         }
 
 major_params = {
@@ -88,23 +88,23 @@ minor_params['local']['angle_ceiling'] = m.pi / 9
 minor_params['global']['height_weight'] = -1
 minor_params['global']['density_weight'] = 1
 minor_params['match']['min_maj_noncross'] = True
-minor_params['match']['candidate_stop'] = 1e3
-minor_params['branch']['probability_floor'] = 0.9
-minor_params['branch']['probability_ceiling'] = 1
-minor_params['branch']['angle_floor'] = (m.pi / 2) - (m.pi / 9)
-minor_params['branch']['angle_ceiling'] = (m.pi / 2) + (m.pi / 9)
+minor_params['match']['candidate_stop'] = 2e3
+minor_params['branch']['probability_floor'] = 3e-1
+minor_params['branch']['probability_ceiling'] = 6e-1
+minor_params['branch']['angle_floor'] = (m.pi / 2) - (m.pi / 6)
+minor_params['branch']['angle_ceiling'] = (m.pi / 2) + (m.pi / 6)
 minor_params['redundancy_TOL'] = 6
 
 def make_system(fName):
     print "Generating map for %s" % fName
     hmap = ds.diamond_square(10, h_corners, 20, 0.8)
     dmap = ds.diamond_square(10, d_corners, 4, 0.6)
-    # vmap = ds.diamond_square(9, v_corners, 4, 0.2)
-    vmap = np.ones_like(hmap)
+    vmap = ds.diamond_square(10, v_corners, 4, 0.2)
+    # vmap = np.ones_like(hmap)
     sm.imsave('hmap.bmp', hmap)
     sm.imsave('dmap.bmp', dmap)
     sys = rs.RoadSys(hmap, dmap, vmap)
-    sys.create_system(fName, mc_params, 100, 50, major_params, minor_params)
+    sys.create_system(fName, mc_params, 200, 100, major_params, minor_params)
 
 if __name__=='__main__':
     make_system(sys.argv[1])
