@@ -8,6 +8,8 @@ import math as m
 import topogen.py2.diamond_square as ds
 import citygen.py2.rs2 as rs
 
+OUT = "out/"
+
 # topo params
 h_corners = [80, 100, 130, 100]
 d_corners = [100, 140, 100, 100]
@@ -95,16 +97,20 @@ minor_params['branch']['angle_floor'] = (m.pi / 2) - (m.pi / 6)
 minor_params['branch']['angle_ceiling'] = (m.pi / 2) + (m.pi / 6)
 minor_params['redundancy_TOL'] = 6
 
-def make_system(fName):
+def make_system(fName, majors, minors):
     print "Generating map for %s" % fName
     hmap = ds.diamond_square(10, h_corners, 20, 0.8)
     dmap = ds.diamond_square(10, d_corners, 4, 0.6)
     vmap = ds.diamond_square(10, v_corners, 4, 0.2)
     # vmap = np.ones_like(hmap)
-    sm.imsave('hmap.bmp', hmap)
-    sm.imsave('dmap.bmp', dmap)
+    hName = OUT + fName + '_hmap.bmp'
+    dName = OUT + fName + '_dmap.bmp'
+    vName = OUT + fName + '_vmap.bmp'
+    sm.imsave(hName, hmap)
+    sm.imsave(dName, dmap)
+    sm.imsave(vName, vmap)
     sys = rs.RoadSys(hmap, dmap, vmap)
-    sys.create_system(fName, mc_params, 200, 100, major_params, minor_params)
+    sys.create_system(OUT + fName, mc_params, majors, minors, major_params, minor_params)
 
 if __name__=='__main__':
-    make_system(sys.argv[1])
+    make_system(sys.argv[1], int(sys.argv[2]), int(sys.argv[3]))

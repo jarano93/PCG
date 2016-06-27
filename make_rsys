@@ -1,7 +1,11 @@
 #!/bin/bash
 
-for var in "$@"
+majors=${@:1:1}
+minors=${@:2:1}
+
+for var in "${@:3}"
 do
-    python2 rsys.py  $var
+    # echo $var $majors $minors
+    python2 rsys.py  $var $majors $minors
 done
-print "Done!!!"
+echo "Done!!!"
