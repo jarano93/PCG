@@ -119,8 +119,8 @@ class RoadSys:
         self.candidates = self.major_candidates(mc_params)
         self.major_system(N_maj)
         # maj_fName = fName + "_maj"
-        self.debug_svg(maj_fName)
-        self.save_svg(maj_fName)
+        # self.debug_svg(maj_fName)
+        # self.save_svg(maj_fName)
         self.update_params = min_params # minor rules can change while updating
         self.candidates = self.minor_candidates()
         self.minor_system(N_min)
