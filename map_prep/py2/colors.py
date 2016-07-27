@@ -6,12 +6,12 @@ import math as m
 
 def map_topo(hmap):
     dims = hmap.shape
-    print hmap.shape
+    # print hmap.shape
     if np.amin(hmap) < 0:
-        print "water"
+        # print "water"
         rgb = make_green_blue(hmap, dims)
     else:
-        print "land"
+        # print "land"
         rgb = make_green(hmap, dims)
     return rgb
 
@@ -22,7 +22,7 @@ def make_green(hmap, shape):
     hmap_max = np.amax(hmap)
     hmap_min = np.amin(hmap)
     hmap_range = hmap_max - hmap_min
-    print hmap_max, hmap_min, hmap_range
+    # print hmap_max, hmap_min, hmap_range
     rgb[...,0] = 200.0 * (hmap - hmap_min) / (hmap_range + 1e-10)
     rgb[...,1] = 255.0
     rgb[...,2] = 100.0 + 100 * (hmap - hmap_min) / (hmap_range + 1e-10)
