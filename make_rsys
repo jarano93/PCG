@@ -3,9 +3,10 @@
 majors=${@:1:1}
 minors=${@:2:1}
 
-for var in "${@:3}"
+
+for file_name in "${@:3}"
 do
     # echo $var $majors $minors
-    python2 rsys.py  $var $majors $minors
+    python2 rsys.py  $majors $minors $file_name
 done
 echo "Done!!!"

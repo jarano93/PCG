@@ -110,8 +110,22 @@ class RoadSys:
         self.update_params = min_params # minor rules can change while updating
         self.candidates = self.minor_candidates()
         self.minor_system(N_min)
-        self.debug_svg(fName)
+        # self.debug_svg(fName)
         self.save_svg(fName)
+
+    def create_system_img(self, fName, imName, mc_params, N_maj, N_min, maj_params, min_params):
+        self.majors, self.minors = [], []
+        self.update_params = maj_params # major rules can change while updating
+        self.candidates = self.major_candidates(mc_params)
+        self.major_system(N_maj)
+        maj_fName = fName + "_maj"
+        self.debug_svg(maj_fName)
+        self.save_svg(maj_fName)
+        self.update_params = min_params # minor rules can change while updating
+        self.candidates = self.minor_candidates()
+        self.minor_system(N_min)
+        # self.debug_svg(fName)
+        self.save_svg_img(fName, imName)
 
     def major_candidates(self, mc_params):
         print "major candidates"
@@ -584,6 +598,15 @@ class RoadSys:
         file.close()
         # print "Saved svg as %s" % fName
 
+    def save_svg_img(self, fName, imName):
+        file_name = fName + ".svg"
+        print "saving as %s" % file_name
+        file = open(file_name, 'w')
+        self.prep_svg_img(file, imName)
+        self.write_accepted(file)
+        self.end_svg(file)
+        file.close()
+
     def prep_svg(self, file):
         shape = self.hmap.shape
         width, height = shape[1], shape[0]
@@ -592,11 +615,21 @@ class RoadSys:
         file.write(dim_string)
         file.write('    xmlns="http://www.w3.org/2000/svg">\n\n')
 
+    def prep_svg_img(self, file, imName):
+        shape = self.hmap.shape
+        width, height = shape[1], shape[0]
+        dim_string = '<svg width="%i" height="%i"\n' % (width, height)
+        file.write('<?xml version="1.0"?>\n')
+        file.write(dim_string)
+        file.write('    xmlns="http://www.w3.org/2000/svg"')
+        file.write(' xmlns:xlink= "http://www.w3.org/1999/xlink">\n\n')
+        file.write('<image xlink:href="%s" height="%dpx" width="%dpx"/>\n\n' % (imName, width, height))
+
     def write_accepted(self, file):
         for a in self.min_accepted:
-            file.write(self.segment_svg(a, 'gray', 1))
+            file.write(self.segment_svg(a, 'pink', 1))
         for a in self.maj_accepted:
-            file.write(self.segment_svg(a, 'black', 1))
+            file.write(self.segment_svg(a, 'red', 1))
 
     def segment_svg(self, seg, stroke, width):
         part1 = '<line x1="%f" y1="%f" ' % (seg.start[1], seg.start[0])
