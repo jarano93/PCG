@@ -632,8 +632,8 @@ class RoadSys:
             file.write(self.segment_svg(a, 'red', 1))
 
     def segment_svg(self, seg, stroke, width):
-        part1 = '<line x1="%f" y1="%f" ' % (seg.start[1], seg.start[0])
-        part2 = 'x2="%f" y2="%f" ' % (seg.end[1], seg.end[0])
+        part1 = '<line x1="%0.2f" y1="%0.2f" ' % (seg.start[1], seg.start[0])
+        part2 = 'x2="%0.2f" y2="%0.2f" ' % (seg.end[1], seg.end[0])
         part3 = 'stroke="%s" stroke-width="%i"/>\n' % (stroke, width)
         return part1 + part2 + part3
 
